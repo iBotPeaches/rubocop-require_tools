@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'rubocop'
+require 'set'
 require_relative '../../helper/state'
 
 module RuboCop
@@ -16,8 +17,8 @@ module RuboCop
       #   require 'faraday'
       #
       #   Faraday.new
-      class MissingRequireStatement < Cop
-        MSG = '`%<constant>s` not found, you\'re probably missing a require statement or there is a cycle in your dependencies.'.freeze
+      class MissingRequireStatement < Base
+        MSG = '`%<constant>s` not found, you\'re probably missing a require statement or there is a cycle in your dependencies.'
 
         attr_writer :timeline
 
@@ -27,7 +28,8 @@ module RuboCop
 
         # Builds
         def investigate(processed_source)
-          processing_methods = self.methods.select { |m| m.to_s.start_with? 'process_' }
+          # Collect all instance methods that handle specific node types
+          processing_methods = self.class.instance_methods.select { |m| m.to_s.start_with? 'process_' }
 
           stack = [processed_source.ast]
           skip = Set.new
@@ -63,14 +65,14 @@ module RuboCop
           end
         end
 
-        def add_offense(node, location: nil, message:)
+        def add_offense(node, message:, location: nil)
           # Work around breaking API changes between rubocop 0.49.1 and later (...)
           signature_old = %i[node loc message severity]
           param_info = RuboCop::Cop::Cop.instance_method(:add_offense).parameters
           if param_info.map(&:last) == signature_old
             super(node, location || :expression, message)
           elsif location
-            super(node, location: location, message: message)
+            super
           else
             super(node, message: message)
           end
@@ -88,6 +90,7 @@ module RuboCop
           inner = node
           outer_const = extract_const(node)
           return unless outer_const
+
           consts = [outer_const]
           while (inner = extract_inner_const(inner))
             const = extract_const(inner)
@@ -98,8 +101,10 @@ module RuboCop
 
         def process_const(node, _source)
           return unless node.kind_of? RuboCop::AST::Node
+
           consts = find_consts(node)
           return unless consts
+
           const_name = consts.join('::')
 
           self.timeline << { event: :const_access, name: const_name, node: node }
@@ -117,6 +122,7 @@ module RuboCop
 
         def process_const_assign(node, _source)
           return unless node.kind_of? RuboCop::AST::Node
+
           const_assign_name = extract_const_assignment(node)
           return unless const_assign_name
 
@@ -154,6 +160,7 @@ module RuboCop
           end
 
           return unless is_module_or_class?(node)
+
           name = find_consts(node.children.first).join('::')
           inherited = find_consts(node.children[1]).join('::') if has_superclass?(node)
 
@@ -178,8 +185,10 @@ module RuboCop
 
         def process_require(node, source)
           return unless node.kind_of? RuboCop::AST::Node
+
           required = extract_require(node)
           return unless required && required.length == 2
+
           method, file = required
           self.timeline << { event: method, file: file, path: source.path }
 
@@ -221,9 +230,7 @@ module RuboCop
                 err_indices = err_indices.reject { |e| outdated.include?(timeline[e]) }
               when :const_alias
                 # Only create the alias if the target constant exists
-                if state.access_const(const_name: event[:aliased_to])
-                  state.const_aliased(const_name: event[:name], aliased_to: event[:aliased_to])
-                end
+                state.const_aliased(const_name: event[:name], aliased_to: event[:aliased_to]) if state.access_const(const_name: event[:aliased_to])
 
                 previous_errors = err_indices.map { |e| timeline[e] }
                 outdated = outdated_errors(previous_errors, state)

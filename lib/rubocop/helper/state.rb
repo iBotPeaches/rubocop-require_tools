@@ -1,10 +1,10 @@
+# frozen_string_literal: true
+
 module RuboCop
   module RequireTools
     # Contains current state of an inspected file
     class State
-      attr_accessor :defined_constants
-      attr_accessor :const_stack
-      attr_accessor :const_aliases
+      attr_accessor :defined_constants, :const_stack, :const_aliases
 
       def initialize
         self.defined_constants = []
@@ -14,17 +14,17 @@ module RuboCop
 
       def require(file: nil)
         Kernel.require(file)
-      rescue NameError, LoadError => ex
+      rescue NameError, LoadError => e
         puts "Note: Could not load #{file}:"
-        puts ex.message
+        puts e.message
         puts 'Check your dependencies, they could be circular'
       end
 
       def require_relative(relative_path: nil)
         Kernel.require_relative(relative_path)
-      rescue NameError, LoadError => ex
+      rescue NameError, LoadError => e
         puts "Note: Could not load relative file #{relative_path}:"
-        puts ex.message
+        puts e.message
         puts 'Check your dependencies, they could be circular'
       end
 
@@ -46,8 +46,8 @@ module RuboCop
 
         result ||= self.defined_constants.find { |c| resolved_name == c }                                       # Defined in this file, other module/class
         prefixes.each do |prefix|
-          result ||= self.defined_constants.find { |c| [resolved_name, "#{prefix}::#{resolved_name}"].include? c }       # Defined in this file, other module/class
-          result ||= prefix == resolved_name                                                                    # Defined in this file, in current module/class
+          result ||= self.defined_constants.find { |c| [resolved_name, "#{prefix}::#{resolved_name}"].include? c } # Defined in this file, other module/class
+          result ||= prefix == resolved_name # Defined in this file, in current module/class
         end
 
         return result
@@ -79,7 +79,7 @@ module RuboCop
         # Compute the full constant name
         full_name = (self.const_stack + [const_name]).join('::')
         full_name = const_name.to_s if full_name.empty?
-        
+
         # Track the alias relationship
         self.const_aliases[full_name] = aliased_to
         # Also define the alias as a constant
@@ -91,7 +91,7 @@ module RuboCop
 
       def resolve_alias(name)
         # Check if the name starts with an aliased constant
-        # e.g., if DisplayType is aliased to A::B::C, 
+        # e.g., if DisplayType is aliased to A::B::C,
         # then DisplayType::X should become A::B::C::X
         self.const_aliases.each do |alias_name, target_name|
           if name == alias_name
