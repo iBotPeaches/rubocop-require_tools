@@ -3,6 +3,15 @@ require 'rubocop/require_tools'
 
 require 'rubocop/rspec/support'
 
+# Add strip_indent helper for compatibility
+class String
+  def strip_indent
+    indent = scan(/^[ \t]*(?=\S)/).min
+    indent_size = indent ? indent.size : 0
+    gsub(/^[ \t]{#{indent_size}}/, '')
+  end
+end
+
 RSpec.configure do |config|
   config.include RuboCop::RSpec::ExpectOffense
 

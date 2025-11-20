@@ -11,7 +11,7 @@ Metrics/ClassLength:
   Max: 500
 
 # We're not living in the 90's anymore, people can deal with long lines
-Metrics/LineLength:
+Layout/LineLength:
   Enabled: false
 
 Metrics/MethodLength:
