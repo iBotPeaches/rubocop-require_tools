@@ -4,10 +4,12 @@ module RuboCop
     class State
       attr_accessor :defined_constants
       attr_accessor :const_stack
+      attr_accessor :const_aliases
 
       def initialize
         self.defined_constants = []
         self.const_stack = []
+        self.const_aliases = {}
       end
 
       def require(file: nil)
@@ -29,19 +31,23 @@ module RuboCop
       def access_const(const_name: nil, local_only: false)
         name = const_name.to_s.sub(/^:*/, '').sub(/:*$/, '') # Strip leading/trailing ::
 
+        # Check if this constant access matches an alias pattern
+        # e.g., if DisplayType is aliased to A::B::C, then DisplayType::X should resolve to A::B::C::X
+        resolved_name = resolve_alias(name)
+
         # If const_stack is ["A", "B", "C"] all of A, A::B, A::B::C are valid lookup combinations
         prefixes = self.const_stack.reduce([]) { |a, c| a << [a.last, c].compact.join('::') }
 
         # I use const_get here because in testing const_get and const_defined? have yielded different results
         unless local_only
-          result = Object.const_get(name) rescue nil                                                   # Defined elsewhere, top-level
-          result ||= self.defined_constants.find { |c| Object.const_get("#{c}::#{name}") rescue nil }  # Defined elsewhere, nested
+          result = Object.const_get(resolved_name) rescue nil                                                   # Defined elsewhere, top-level
+          result ||= self.defined_constants.find { |c| Object.const_get("#{c}::#{resolved_name}") rescue nil }  # Defined elsewhere, nested
         end
 
-        result ||= self.defined_constants.find { |c| name == c }                                       # Defined in this file, other module/class
+        result ||= self.defined_constants.find { |c| resolved_name == c }                                       # Defined in this file, other module/class
         prefixes.each do |prefix|
-          result ||= self.defined_constants.find { |c| [name, "#{prefix}::#{name}"].include? c }       # Defined in this file, other module/class
-          result ||= prefix == name                                                                    # Defined in this file, in current module/class
+          result ||= self.defined_constants.find { |c| [resolved_name, "#{prefix}::#{resolved_name}"].include? c }       # Defined in this file, other module/class
+          result ||= prefix == resolved_name                                                                    # Defined in this file, in current module/class
         end
 
         return result
@@ -67,6 +73,35 @@ module RuboCop
         full_name = (self.const_stack + [const_name]).join('::')
         self.defined_constants << full_name
         self.defined_constants.uniq!
+      end
+
+      def const_aliased(const_name: nil, aliased_to: nil)
+        # Compute the full constant name
+        full_name = (self.const_stack + [const_name]).join('::')
+        full_name = const_name.to_s if full_name.empty?
+        
+        # Track the alias relationship
+        self.const_aliases[full_name] = aliased_to
+        # Also define the alias as a constant
+        self.defined_constants << full_name
+        self.defined_constants.uniq!
+      end
+
+      private
+
+      def resolve_alias(name)
+        # Check if the name starts with an aliased constant
+        # e.g., if DisplayType is aliased to A::B::C, 
+        # then DisplayType::X should become A::B::C::X
+        self.const_aliases.each do |alias_name, target_name|
+          if name == alias_name
+            return target_name
+          elsif name.start_with?("#{alias_name}::")
+            # Replace the alias prefix with the target
+            return name.sub(/^#{Regexp.escape(alias_name)}/, target_name)
+          end
+        end
+        name
       end
     end
   end

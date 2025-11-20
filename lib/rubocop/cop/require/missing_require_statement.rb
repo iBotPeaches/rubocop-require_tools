@@ -111,10 +111,28 @@ module RuboCop
           (casgn nil? $_ ...)
         PATTERN
 
+        def_node_matcher :is_const_node?, <<-PATTERN
+          (const ...)
+        PATTERN
+
         def process_const_assign(node, _source)
           return unless node.kind_of? RuboCop::AST::Node
           const_assign_name = extract_const_assignment(node)
           return unless const_assign_name
+
+          # Check if the assigned value is a constant (aliasing another constant)
+          assigned_value = node.children[2]
+          if assigned_value && is_const_node?(assigned_value)
+            # Extract the constant being referenced
+            aliased_const_parts = find_consts(assigned_value)
+            if aliased_const_parts
+              aliased_const_name = aliased_const_parts.join('::')
+              # Add const_access event to check if the aliased constant exists
+              self.timeline << { event: :const_access, name: aliased_const_name, node: assigned_value }
+              # Add const_alias event to track the alias relationship
+              self.timeline << { event: :const_alias, name: const_assign_name, aliased_to: aliased_const_name }
+            end
+          end
 
           self.timeline << { event: :const_assign, name: const_assign_name }
 
@@ -197,6 +215,15 @@ module RuboCop
                 state.undefine_const(const_name: event[:name])
               when :const_assign
                 state.const_assigned(const_name: event[:name])
+
+                previous_errors = err_indices.map { |e| timeline[e] }
+                outdated = outdated_errors(previous_errors, state)
+                err_indices = err_indices.reject { |e| outdated.include?(timeline[e]) }
+              when :const_alias
+                # Only create the alias if the target constant exists
+                if state.access_const(const_name: event[:aliased_to])
+                  state.const_aliased(const_name: event[:name], aliased_to: event[:aliased_to])
+                end
 
                 previous_errors = err_indices.map { |e| timeline[e] }
                 outdated = outdated_errors(previous_errors, state)
