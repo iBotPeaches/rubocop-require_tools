@@ -27,8 +27,8 @@ module RuboCop
         end
 
         def on_new_investigation
-          @timeline = []
           investigate(processed_source)
+          super
         end
 
         # Builds

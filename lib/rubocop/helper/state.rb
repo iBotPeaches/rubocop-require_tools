@@ -76,13 +76,11 @@ module RuboCop
       end
 
       def const_aliased(const_name: nil, aliased_to: nil)
-        # Compute the full constant name
         full_name = (self.const_stack + [const_name]).join('::')
         full_name = const_name.to_s if full_name.empty?
 
         # Track the alias relationship
         self.const_aliases[full_name] = aliased_to
-        # Also define the alias as a constant
         self.defined_constants << full_name
         self.defined_constants.uniq!
       end
@@ -90,14 +88,10 @@ module RuboCop
       private
 
       def resolve_alias(name)
-        # Check if the name starts with an aliased constant
-        # e.g., if DisplayType is aliased to A::B::C,
-        # then DisplayType::X should become A::B::C::X
         self.const_aliases.each do |alias_name, target_name|
           if name == alias_name
             return target_name
           elsif name.start_with?("#{alias_name}::")
-            # Replace the alias prefix with the target
             return name.sub(/^#{Regexp.escape(alias_name)}/, target_name)
           end
         end
