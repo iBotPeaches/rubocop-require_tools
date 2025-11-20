@@ -26,6 +26,11 @@ module RuboCop
           @timeline ||= []
         end
 
+        def on_new_investigation
+          @timeline = []
+          investigate(processed_source)
+        end
+
         # Builds
         def investigate(processed_source)
           # Collect all instance methods that handle specific node types
@@ -129,13 +134,10 @@ module RuboCop
           # Check if the assigned value is a constant (aliasing another constant)
           assigned_value = node.children[2]
           if assigned_value && is_const_node?(assigned_value)
-            # Extract the constant being referenced
             aliased_const_parts = find_consts(assigned_value)
             if aliased_const_parts
               aliased_const_name = aliased_const_parts.join('::')
-              # Add const_access event to check if the aliased constant exists
               self.timeline << { event: :const_access, name: aliased_const_name, node: assigned_value }
-              # Add const_alias event to track the alias relationship
               self.timeline << { event: :const_alias, name: const_assign_name, aliased_to: aliased_const_name }
             end
           end
