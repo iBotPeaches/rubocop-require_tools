@@ -143,5 +143,13 @@ RSpec.describe RuboCop::Cop::Require::MissingRequireStatement do
         ^^^^^^^^^^^^^^^^^^^^^^ Require/MissingRequireStatement: `DisplayType::SOMETHING` not found, you're probably missing a require statement or there is a cycle in your dependencies.
       RUBY
     end
+
+    it 'does not register an offense when referencing the alias name itself even if target is unresolved' do
+      expect_offense(<<-RUBY.strip_indent)
+        DisplayType = Undefined::Constant
+                      ^^^^^^^^^^^^^^^^^^^ Require/MissingRequireStatement: `Undefined::Constant` not found, you're probably missing a require statement or there is a cycle in your dependencies.
+        DisplayType
+      RUBY
+    end
   end
 end

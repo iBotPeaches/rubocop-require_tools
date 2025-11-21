@@ -231,8 +231,10 @@ module RuboCop
                 outdated = outdated_errors(previous_errors, state)
                 err_indices = err_indices.reject { |e| outdated.include?(timeline[e]) }
               when :const_alias
-                # Only create the alias if the target constant exists
-                state.const_aliased(const_name: event[:name], aliased_to: event[:aliased_to]) if state.access_const(const_name: event[:aliased_to])
+                # Always register the alias. Even if the target constant cannot be resolved in the
+                # analysis environment (e.g., missing gem/runtime in the linter process), the alias
+                # is part of the local file semantics and should be recognized to avoid false positives.
+                state.const_aliased(const_name: event[:name], aliased_to: event[:aliased_to])
 
                 previous_errors = err_indices.map { |e| timeline[e] }
                 outdated = outdated_errors(previous_errors, state)
