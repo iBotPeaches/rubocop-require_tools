@@ -9,7 +9,7 @@ RSpec.describe RuboCop::Cop::Require::MissingRequireStatement do
     it 'registers an offense when missing' do
       expect_offense(<<-RUBY.strip_indent)
         Abbrev.abbrev(["test"])
-        ^^^^^^ `Abbrev` not found, you're probably missing a require statement or there is a cycle in your dependencies.
+        ^^^^^^ Require/MissingRequireStatement: `Abbrev` not found, you're probably missing a require statement or there is a cycle in your dependencies.
       RUBY
     end
 
@@ -23,7 +23,7 @@ RSpec.describe RuboCop::Cop::Require::MissingRequireStatement do
     it 'registers an offense when too late' do
       expect_offense(<<-RUBY.strip_indent)
         Abbrev.abbrev(["test"])
-        ^^^^^^ `Abbrev` not found, you're probably missing a require statement or there is a cycle in your dependencies.
+        ^^^^^^ Require/MissingRequireStatement: `Abbrev` not found, you're probably missing a require statement or there is a cycle in your dependencies.
         require 'abbrev'
       RUBY
     end
@@ -82,7 +82,7 @@ RSpec.describe RuboCop::Cop::Require::MissingRequireStatement do
     it 'registers an offense when not available' do
       expect_offense(<<-RUBY.strip_indent)
       class A < B
-      ^^^^^^^^^^^ `B` not found, you're probably missing a require statement or there is a cycle in your dependencies.
+      ^^^^^^^^^^^ Require/MissingRequireStatement: `B` not found, you're probably missing a require statement or there is a cycle in your dependencies.
       end
       RUBY
     end
@@ -100,6 +100,55 @@ RSpec.describe RuboCop::Cop::Require::MissingRequireStatement do
       expect_no_offenses(<<-RUBY.strip_indent)
         require 'abbrev'
         class A < Abbrev; end
+      RUBY
+    end
+  end
+
+  describe 'aliased constants' do
+    it 'does not register an offense when using aliased constant with nested access' do
+      expect_no_offenses(<<-RUBY.strip_indent)
+        module Spaceship
+          module ConnectAPI
+            module AppScreenshotSet
+              module DisplayType
+                ALL_IMESSAGE = []
+                APP_IPHONE_40 = "app_iphone_40"
+              end
+            end
+          end
+        end
+
+        DisplayType = Spaceship::ConnectAPI::AppScreenshotSet::DisplayType
+
+        DisplayType::ALL_IMESSAGE
+        DisplayType::APP_IPHONE_40
+      RUBY
+    end
+
+    it 'does not register an offense when aliasing a simple constant' do
+      expect_no_offenses(<<-RUBY.strip_indent)
+        module A
+          B = 5
+        end
+        C = A::B
+        C.to_i
+      RUBY
+    end
+
+    it 'still registers offense for undefined aliased constant' do
+      expect_offense(<<-RUBY.strip_indent)
+        DisplayType = Undefined::Constant
+                      ^^^^^^^^^^^^^^^^^^^ Require/MissingRequireStatement: `Undefined::Constant` not found, you're probably missing a require statement or there is a cycle in your dependencies.
+        DisplayType::SOMETHING
+        ^^^^^^^^^^^^^^^^^^^^^^ Require/MissingRequireStatement: `DisplayType::SOMETHING` not found, you're probably missing a require statement or there is a cycle in your dependencies.
+      RUBY
+    end
+
+    it 'does not register an offense when referencing the alias name itself even if target is unresolved' do
+      expect_offense(<<-RUBY.strip_indent)
+        DisplayType = Undefined::Constant
+                      ^^^^^^^^^^^^^^^^^^^ Require/MissingRequireStatement: `Undefined::Constant` not found, you're probably missing a require statement or there is a cycle in your dependencies.
+        DisplayType
       RUBY
     end
   end

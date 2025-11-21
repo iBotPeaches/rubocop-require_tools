@@ -2,7 +2,9 @@ AllCops:
   Exclude:
     - spec/**/*
     - vendor/**/*
-  TargetRubyVersion: "2.1" # 2.0 doesn't work because rubocop dropped it
+  TargetRubyVersion: "2.7"
+  NewCops: enable
+  SuggestExtensions: false
 
 Style/RedundantSelf:
   Enabled: false
@@ -11,7 +13,7 @@ Metrics/ClassLength:
   Max: 500
 
 # We're not living in the 90's anymore, people can deal with long lines
-Metrics/LineLength:
+Layout/LineLength:
   Enabled: false
 
 Metrics/MethodLength:
@@ -37,3 +39,9 @@ Style/RedundantReturn:
 
 Style/RescueModifier:
   Enabled: false
+
+Metrics/PerceivedComplexity:
+  Max: 16
+
+Gemspec/DevelopmentDependencies:
+  EnforcedStyle: 'gemspec'
